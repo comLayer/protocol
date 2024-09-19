@@ -1,0 +1,28 @@
+{
+  "name": "com-layer",
+  "version": "0.1.0",
+  "description": "Key registration contract",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/comLayer/protocol.git"
+  },
+  "keywords": [
+    "eth",
+    "Ethereum",
+    "security"
+  ],
+  "author": "comLayer",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/comLayer/protocol/issues"
+  },
+  "homepage": "https://github.com/comLayer/protocol#readme",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "hardhat": "^2.22.10"
+  }
+}
