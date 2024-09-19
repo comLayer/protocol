@@ -11,7 +11,7 @@ contract PublicKeyRegistry {
     /// @dev Structure to store public key information.
     struct PublicKeyInfo {
         bytes publicKey;              // User's public key (binary data)
-        string encryptionAlgorithm;   // Encryption algorithm (RSA : 0x01 | ECDSA : 0x02 | Ed25519 : 0x03 | AES : 0x04 | SHA-256 : 0x05)
+        string encryptionAlgorithm;   // Encryption algorithm (RSA : 0x00)
         uint256 lastRegisteredAt;     // Timestamp of the last registration to prevent spamming
     }
 
@@ -50,11 +50,7 @@ contract PublicKeyRegistry {
 
         // Validate allowed encryption algorithms (example string comparison)
         bytes32 algHash = keccak256(abi.encodePacked(_encryptionAlgorithm));
-        if (algHash != keccak256("RSA") &&
-            algHash != keccak256("ECDSA") &&
-            algHash != keccak256("Ed25519") &&
-            algHash != keccak256("AES") &&
-            algHash != keccak256("SHA-256")) {
+        if (algHash != keccak256("RSA")) {
             revert UnsupportedEncryptionAlgorithm();
         }
 
