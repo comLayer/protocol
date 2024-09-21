@@ -18,6 +18,12 @@ contract PublicKeyRegistry {
     /// @dev Mapping to link an Ethereum address to its public key information.
     mapping(address => PublicKeyInfo) private publicKeys;
 
+    /// @dev Mapping to link an Ethereum address to its public key information.
+    mapping(string => bool) private supportedEncryptionAlgorithms;
+
+    /// account who deployed the contract
+    address private owner;
+
     /// @dev Minimum time required between registering/unregistering operations to prevent spam.
     uint256 constant RATE_LIMIT_TIME = 1 minutes;
 
@@ -37,6 +43,12 @@ contract PublicKeyRegistry {
     error UnsupportedEncryptionAlgorithm();
     error RateLimitExceeded();
     error NoPublicKeyRegistered();
+    error AccessDenied();
+
+    constructor() {
+        supportedEncryptionAlgorithms["RSA"] = true;
+        owner = msg.sender;
+    }
 
     /**
      * @notice Registers a public key and associated encryption algorithm for the caller.
@@ -48,9 +60,7 @@ contract PublicKeyRegistry {
         if (_publicKey.length <= 32) revert PublicKeyTooShort();
         if (bytes(_encryptionAlgorithm).length == 0) revert EmptyEncryptionAlgorithm();
 
-        // Validate allowed encryption algorithms (example string comparison)
-        bytes32 algHash = keccak256(abi.encodePacked(_encryptionAlgorithm));
-        if (algHash != keccak256("RSA")) {
+        if (!supportedEncryptionAlgorithms[_encryptionAlgorithm]) {
             revert UnsupportedEncryptionAlgorithm();
         }
 
@@ -106,6 +116,28 @@ contract PublicKeyRegistry {
      */
     function isRegistered(address _user) external view returns (bool isAddressRegistered) {
         return bytes(publicKeys[_user].publicKey).length > 0;
+    }
+
+    /**
+     * @notice Adds new algorithm allowing to register new keys with
+     * @param encryptionAlgorithm new algorithm to add
+     */
+    function addEncryptionAlgorithm(string calldata encryptionAlgorithm) external {
+        if (msg.sender != owner) {
+            revert AccessDenied();
+        }
+        supportedEncryptionAlgorithms[encryptionAlgorithm] = true;
+    }
+
+    /**
+     * @notice Removes a specified algorithm restricting new key registration
+     * @param encryptionAlgorithm an algorithm to remove
+     */
+    function removeEncryptionAlgorithm(string calldata encryptionAlgorithm) external {
+        if (msg.sender != owner) {
+            revert AccessDenied();
+        }
+        supportedEncryptionAlgorithms[encryptionAlgorithm] = false;
     }
 
     /**

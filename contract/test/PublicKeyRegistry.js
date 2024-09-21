@@ -51,4 +51,52 @@ describe.only("PublicKeyRegistry", function () {
     .to.be.revertedWithCustomError(contract, "PublicKeyTooShort");
     expect(await contract.isRegistered(owner)).to.equal(false);
   });
+
+  it("Should be allowed to register keys with new algo once the algo introduced", async function () {
+    const { contract, owner } = await loadFixture(deployContractFixture);
+    
+    const key = "0x"+"a0".repeat(36);
+    const newAlgo = "newalgo"
+
+    await expect(contract.register(key, newAlgo))
+      .to.be.revertedWithCustomError(contract, "UnsupportedEncryptionAlgorithm");
+      
+    await contract.addEncryptionAlgorithm(newAlgo);
+
+    await expect(contract.register(key, newAlgo))
+    .to.emit(contract, "PublicKeyRegistered").withArgs(owner, key, newAlgo);
+  });
+
+  it("Should deny registering keys with an algo once the algo is removed", async function () {
+    const { contract, owner, otherAccount } = await loadFixture(deployContractFixture);
+    
+    const key = "0x"+"a0".repeat(36);
+    const newAlgo = "newalgo"
+
+    await contract.addEncryptionAlgorithm(newAlgo);
+
+    const callAsOwner = contract;
+    const callAsAccount1 = callAsOwner;
+    const callAsAccount2 = contract.connect(otherAccount);
+
+    await expect(callAsAccount1.register(key, newAlgo))
+    .to.emit(callAsAccount1, "PublicKeyRegistered").withArgs(owner, key, newAlgo);
+
+    await callAsOwner.removeEncryptionAlgorithm(newAlgo);
+
+    await expect(callAsAccount2.register(key, newAlgo))
+    .to.be.revertedWithCustomError(callAsAccount2, "UnsupportedEncryptionAlgorithm");
+  });
+
+  it("Should restrict new algo intro to contract owner only", async function () {
+    const { contract, owner, otherAccount} = await loadFixture(deployContractFixture);
+    const newAlgo = "newalgo"
+
+    const callAsOwner = contract;
+    const callAsNonOwner = contract.connect(otherAccount);
+    await expect(callAsNonOwner.addEncryptionAlgorithm(newAlgo))
+      .to.be.revertedWithCustomError(contract, "AccessDenied");
+
+    await expect(callAsOwner.addEncryptionAlgorithm(newAlgo)).to.be.ok;
+  });
 });
