@@ -119,7 +119,7 @@ contract PublicKeyRegistry {
     }
 
     /**
-     * @notice Adds new algorignm allowing to register new keys with
+     * @notice Adds new algorithm allowing to register new keys with
      * @param encryptionAlgorithm new algorithm to add
      */
     function addEncryptionAlgorithm(string calldata encryptionAlgorithm) external {
@@ -127,6 +127,17 @@ contract PublicKeyRegistry {
             revert AccessDenied();
         }
         supportedEncryptionAlgorithms[encryptionAlgorithm] = true;
+    }
+
+    /**
+     * @notice Removes a specified algorithm restricting new key registration
+     * @param encryptionAlgorithm an algorithm to remove
+     */
+    function removeEncryptionAlgorithm(string calldata encryptionAlgorithm) external {
+        if (msg.sender != owner) {
+            revert AccessDenied();
+        }
+        supportedEncryptionAlgorithms[encryptionAlgorithm] = false;
     }
 
     /**
