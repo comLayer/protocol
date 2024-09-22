@@ -130,14 +130,6 @@ contract PublicKeyRegistry {
     }
 
     /**
-     * @dev Internal assertion to verify the internal state of the mapping is consistent.
-     * In this case, we assert that the length of the stored public key is consistent after registration.
-     */
-    function _assertConsistency(address user) internal view {
-        assert(bytes(publicKeys[user].publicKey).length >= 32); // Assert that public keys are at least 32 bytes
-    }
-
-    /**
      * @dev Validate a provided key agains the specified encryption algorithm and op rate limit
      */
     function _validateKey(bytes calldata _publicKey, string calldata _encryptionAlgorithm) internal view {
