@@ -110,7 +110,7 @@ describe.only("PublicKeyRegistry", function () {
     await expect(callAsOwner.addEncryptionAlgorithm(newAlgo)).to.be.ok;
   });
 
-  it("Should restrict register/unregister operation rate for a user to 1 per min", async function () {
+  it("Should restrict register operation rate for a user to 1 per min", async function () {
     const { contract, owner } = await loadFixture(deployContractFixture);
     
     const key = "0x"+"a0".repeat(36);
@@ -135,5 +135,17 @@ describe.only("PublicKeyRegistry", function () {
     await time.increaseTo(oneMinLaterTimestamp);
     await expect(contract.register(anotherKey, algo))
     .to.emit(contract, "PublicKeyRegistered").withArgs(owner, anotherKey, algo);
+  });
+
+  it("Should restrict a user from violating operation rate limit by repeating register/unregister calls", async function () {
+    const { contract, owner } = await loadFixture(deployContractFixture);
+    
+    const key = "0x"+"a0".repeat(36);
+    const algo = "RSA"
+    await expect(contract.register(key,algo))
+      .to.emit(contract, "PublicKeyRegistered").withArgs(owner, key, algo);
+    
+    await expect(contract.unregister())
+      .to.be.revertedWithCustomError(contract, "RateLimitExceeded");
   });
 });
