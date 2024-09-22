@@ -39,7 +39,6 @@ contract PublicKeyRegistry {
 
     // Custom errors
     error PublicKeyTooShort();
-    error EmptyEncryptionAlgorithm();
     error UnsupportedEncryptionAlgorithm();
     error RateLimitExceeded();
     error NoPublicKeyRegistered();
@@ -57,17 +56,7 @@ contract PublicKeyRegistry {
      * @param _encryptionAlgorithm The encryption algorithm used for the public key.
      */
     function register(bytes calldata _publicKey, string calldata _encryptionAlgorithm) external {
-        if (_publicKey.length <= 32) revert PublicKeyTooShort();
-        if (bytes(_encryptionAlgorithm).length == 0) revert EmptyEncryptionAlgorithm();
-
-        if (!supportedEncryptionAlgorithms[_encryptionAlgorithm]) {
-            revert UnsupportedEncryptionAlgorithm();
-        }
-
-        // Rate limiting to prevent spamming
-        if (block.timestamp < publicKeys[msg.sender].lastRegisteredAt + RATE_LIMIT_TIME) {
-            revert RateLimitExceeded();
-        }
+        _validateKey(_publicKey, _encryptionAlgorithm);
 
         publicKeys[msg.sender] = PublicKeyInfo({
             publicKey: _publicKey,
@@ -137,7 +126,7 @@ contract PublicKeyRegistry {
         if (msg.sender != owner) {
             revert AccessDenied();
         }
-        supportedEncryptionAlgorithms[encryptionAlgorithm] = false;
+        delete supportedEncryptionAlgorithms[encryptionAlgorithm];
     }
 
     /**
@@ -146,5 +135,21 @@ contract PublicKeyRegistry {
      */
     function _assertConsistency(address user) internal view {
         assert(bytes(publicKeys[user].publicKey).length >= 32); // Assert that public keys are at least 32 bytes
+    }
+
+    /**
+     * @dev Validate a provided key agains the specified encryption algorithm and op rate limit
+     */
+    function _validateKey(bytes calldata _publicKey, string calldata _encryptionAlgorithm) internal view {
+        if (_publicKey.length < 32) revert PublicKeyTooShort();
+
+        if (!supportedEncryptionAlgorithms[_encryptionAlgorithm]) {
+            revert UnsupportedEncryptionAlgorithm();
+        }
+
+        // Rate limiting to prevent spamming
+        if (block.timestamp < publicKeys[msg.sender].lastRegisteredAt + RATE_LIMIT_TIME) {
+            revert RateLimitExceeded();
+        }
     }
 }
