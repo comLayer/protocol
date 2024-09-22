@@ -19,7 +19,7 @@ describe.only("PublicKeyRegistry", function () {
   }
 
   it("Deployment smoke", async function () {
-    const [owner, otherAccount] = await ethers.getSigners();
+    const [owner] = await ethers.getSigners();
 
     const PublicKeyRegistry = await ethers.getContractFactory("PublicKeyRegistry");
     const contract = await PublicKeyRegistry.deploy();
@@ -27,7 +27,7 @@ describe.only("PublicKeyRegistry", function () {
     expect(await contract.isRegistered(owner)).to.equal(false);
   });
 
-  it("Should register when allowed key/algo passed", async function () {
+  it("Should register/unregister a supported key when requested", async function () {
     const { contract, owner } = await loadFixture(deployContractFixture);
     
     const key = "0x"+"a0".repeat(36);
@@ -35,6 +35,13 @@ describe.only("PublicKeyRegistry", function () {
     await expect(contract.register(key,algo))
       .to.emit(contract, "PublicKeyRegistered").withArgs(owner, key, algo);
     expect(await contract.isRegistered(owner)).to.equal(true);
+    expect(await contract.getPubKey(owner)).to.include.members([key, algo]);
+
+    const timeOneMinAfter = (await time.latest()) + 61;
+    await time.increaseTo(timeOneMinAfter);
+
+    await expect(contract.unregister())
+      .to.emit(contract, "PublicKeyUnregistered").withArgs(owner);
   });
 
   it("Should revert registeration when allowed wrong key/algo passed", async function () {
@@ -50,6 +57,8 @@ describe.only("PublicKeyRegistry", function () {
     await expect(contract.register(wrong_key, ok_algo))
     .to.be.revertedWithCustomError(contract, "PublicKeyTooShort");
     expect(await contract.isRegistered(owner)).to.equal(false);
+    await expect(contract.getPubKey(owner))
+    .to.be.revertedWithCustomError(contract, "NoPublicKeyRegistered");
   });
 
   it("Should be allowed to register keys with new algo once the algo introduced", async function () {
@@ -86,6 +95,7 @@ describe.only("PublicKeyRegistry", function () {
 
     await expect(callAsAccount2.register(key, newAlgo))
     .to.be.revertedWithCustomError(callAsAccount2, "UnsupportedEncryptionAlgorithm");
+    expect(await contract.isRegistered(otherAccount)).to.equal(false);
   });
 
   it("Should restrict new algo intro to contract owner only", async function () {
@@ -98,5 +108,32 @@ describe.only("PublicKeyRegistry", function () {
       .to.be.revertedWithCustomError(contract, "AccessDenied");
 
     await expect(callAsOwner.addEncryptionAlgorithm(newAlgo)).to.be.ok;
+  });
+
+  it("Should restrict register/unregister operation rate for a user to 1 per min", async function () {
+    const { contract, owner } = await loadFixture(deployContractFixture);
+    
+    const key = "0x"+"a0".repeat(36);
+    const anotherKey = "0x"+"b0".repeat(36);
+    const algo = "RSA"
+    await expect(contract.register(key,algo))
+      .to.emit(contract, "PublicKeyRegistered").withArgs(owner, key, algo);
+    
+    await expect(contract.register(key,algo))
+      .to.be.revertedWithCustomError(contract, "RateLimitExceeded");
+
+    const nowTimestamp = await time.latest()
+    const oneMinLaterTimestamp = nowTimestamp + 60;
+
+    for (var sec of [15, 30, 45, 55]){
+      const timestamp = nowTimestamp + sec;
+      await time.increaseTo(timestamp);
+      await expect(contract.register(anotherKey, algo))
+        .to.be.revertedWithCustomError(contract, "RateLimitExceeded");
+    }
+
+    await time.increaseTo(oneMinLaterTimestamp);
+    await expect(contract.register(anotherKey, algo))
+    .to.emit(contract, "PublicKeyRegistered").withArgs(owner, anotherKey, algo);
   });
 });
