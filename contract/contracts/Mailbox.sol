@@ -1,28 +1,22 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {UserMailbox, UserMailboxInterface, Message} from "./UserMailbox.sol";
+
 /**
  * @title Mailbox
  * @dev A contract for intermediate message exchange between parties.
  */
 contract Mailbox {
-
-    /// @dev Structure to keep a message for a recipient
-    struct Message {
-        address sender;
-        bytes data;
-        uint256 sentAt;
-    }
-
-    /// @dev Mapping to link an address pair(sender,recipient) to messages Mailbox
-    mapping(bytes32 => Message[]) private messages;
-
     /// account who deployed the contract
     address private immutable owner;
 
+    /// @dev Per user Mailbox holding all messages sent by different senders
+    mapping (address => UserMailbox) mailboxes;
+
     /// @dev Max number of messages allowed for a single Mailbox
     uint256 constant public MAX_MESSAGES_PER_MAILBOX = 10;
-
+    
     /// @notice Emitted when a user writes a message
     /// @param sender The address of the message sender
     /// @param recipient The address of the message recipient
@@ -32,6 +26,8 @@ contract Mailbox {
 
     // Raised on attemt to write a messages to a full Mailbox
     error MailboxIsFull();
+
+    using UserMailboxInterface for UserMailbox;
 
     constructor() {
         owner = msg.sender;
@@ -43,18 +39,18 @@ contract Mailbox {
      * @param recipient Message recipient address
      */
     function writeMessage(bytes calldata message, address recipient) external {
-        bytes32 msgCellId = _getMailboxAddress(msg.sender, recipient);
-        Message[] storage _messages = messages[msgCellId];
-        if (_messages.length == MAX_MESSAGES_PER_MAILBOX) revert MailboxIsFull();
-        _messages.push(
-            Message({
-                sender: msg.sender,
-                data: message,
-                sentAt: block.timestamp
-            })
-        );
+        UserMailbox storage mailbox = mailboxes[recipient];
+        uint256 msgCount = mailbox.countMessagesFrom(msg.sender);
+        if (msgCount == MAX_MESSAGES_PER_MAILBOX) revert MailboxIsFull();
 
-        emit MailboxUpdated(msg.sender, recipient, _messages.length, block.timestamp);
+        Message memory _msg = Message({
+            sender: msg.sender,
+            data: message,
+            sentAt: block.timestamp
+        });
+        mailbox.writeMessage(_msg);
+
+        emit MailboxUpdated(msg.sender, recipient, msgCount+1, block.timestamp);
     }
 
     /**
@@ -67,14 +63,17 @@ contract Mailbox {
      */
     function readMessage(address sender, uint8 msgIndex) external view
         returns (bytes memory data, uint256 sentAt, bool hasMoreMessages) {
-        bytes32 msgCellId = _getMailboxAddress(sender, msg.sender);
-        Message[] storage _messages = messages[msgCellId];
-        if (msgIndex < _messages.length) {
-            Message memory _msg = _messages[msgIndex];
-            data = _msg.data;
-            sentAt = _msg.sentAt;
-            hasMoreMessages = msgIndex+1 < _messages.length;
+        
+        UserMailbox storage mailbox = mailboxes[msg.sender];
+        uint256 msgCount = mailbox.countMessagesFrom(sender);
+        if (msgCount == 0 || msgIndex > 0) {
+            bytes memory zero;
+            return (zero, 0, false);
         }
+        (bytes32 _msgId, Message memory _msg) = mailbox.readMessageFrom(sender);
+        data = _msg.data;
+        sentAt = _msg.sentAt;
+        hasMoreMessages = msgCount>1;
     }
 
     /**
@@ -82,12 +81,9 @@ contract Mailbox {
      * @param sender The sender who messages to remove
      */
     function clearMessages(address sender) external {
-        delete messages[_getMailboxAddress(sender, msg.sender)];
+        UserMailbox storage mailbox = mailboxes[msg.sender];
+        mailbox.markMessageReadFrom(sender);
         emit MailboxUpdated(sender, msg.sender, 0, block.timestamp);
-    }
-
-    function _getMailboxAddress(address sender, address recipient) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked(sender, recipient));
     }
 
 }

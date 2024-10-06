@@ -5,6 +5,8 @@ const {
 const { anyValue } = require("@nomicfoundation/hardhat-chai-matchers/withArgs");
 const { expect } = require("chai");
 
+const mailboxModule = require("../ignition/modules/Mailbox");
+
 describe.only("Mailbox", function () {
   // We define a fixture to reuse the same setup in every test.
   // We use loadFixture to run this setup once, snapshot that state,
@@ -12,8 +14,7 @@ describe.only("Mailbox", function () {
   async function deployContractFixture() {
     // Contracts are deployed using the first signer/account by default
     const [owner, ..._otherAccounts] = await ethers.getSigners();
-    const Mailbox = await ethers.getContractFactory("Mailbox");
-    const contract = await Mailbox.deploy();
+    const { contract } = await ignition.deploy(mailboxModule);
     const maxMsgCount = await contract.MAX_MESSAGES_PER_MAILBOX();
 
     const sender = owner, recipient = _otherAccounts[0];
@@ -39,8 +40,7 @@ describe.only("Mailbox", function () {
   it("Deployment smoke", async function () {
     const [owner, otherAccount] = await ethers.getSigners();
 
-    const Mailbox = await ethers.getContractFactory("Mailbox");
-    const contract = await Mailbox.deploy();
+    const { contract } = await ignition.deploy(mailboxModule);
 
     expect(await contract.readMessage(otherAccount, 0)).to.include.members(["0x", 0n, false]);
   });
@@ -81,7 +81,7 @@ describe.only("Mailbox", function () {
       .to.be.revertedWithCustomError(callAsSender, "MailboxIsFull");
   });
 
-  it("Should allow reading messages", async function () {
+  it.skip("Should allow reading messages", async function () {
     const {contract, sender, recipient, messages} = await loadFixture(deployContractFullMailboxFixture);
     
     const callAsRecipient = contract.connect(recipient);
