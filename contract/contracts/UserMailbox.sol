@@ -16,6 +16,8 @@ struct UserMailbox {
 
 using LinkedListInterface for LinkedList;
 
+error MessageNotFound();
+
 library UserMailboxInterface {
     function writeMessage(UserMailbox storage self, Message memory _msg) public {
         bytes32 msgHash = keccak256(abi.encode(_msg));
@@ -32,19 +34,23 @@ library UserMailboxInterface {
         return (valHash, self.messages[valHash]);
     }
 
+    function getMessage(UserMailbox storage self, bytes32 msgId) internal view returns (Message storage) {
+        Message storage _msg = self.messages[msgId];
+        if(_msg.sentAt == 0) {
+            revert MessageNotFound();
+        }
+        return _msg;
+    }
+
     function countMessagesFrom(UserMailbox storage self, address sender) public view returns (uint256) {
         return self.orderedMessageLists[keccak256(abi.encode(sender))].size;
     }
 
-    function markMessageRead(bytes32 messageId) public returns (bool moreMessages) {
-
-    }
-
-    function markMessageReadFrom(UserMailbox storage self, address sender) public {
-        LinkedList storage list = self.orderedMessageLists[keccak256(abi.encode(sender))];
-        for(;true;) {
-            list.removeHead();
-            if(list.size==0) break;
-        }
+    function markMessageRead(UserMailbox storage self, bytes32 messageId) public returns (bool moreMessages) {
+        Message storage _msg = self.messages[messageId];
+        LinkedList storage list = self.orderedMessageLists[keccak256(abi.encode(_msg.sender))];
+        list.remove(messageId);
+        self.messages[messageId].sentAt=0;
+        return list.size > 0;
     }
 }

@@ -56,34 +56,35 @@ contract Mailbox {
     /**
      * @notice Provides a message to its recipient
      * @param sender Sender address
-     * @param msgIndex Index of the message to receive. Recipient is to increment it each call starting from 0 until hasMoreMessages=false
+     * @return msgId Message ID
      * @return data The message
      * @return sentAt Timestamp when the message was written
-     * @return hasMoreMessages whether there are more messages to read
      */
-    function readMessage(address sender, uint8 msgIndex) external view
-        returns (bytes memory data, uint256 sentAt, bool hasMoreMessages) {
+    function readMessage(address sender) external view
+        returns (bytes32 msgId, bytes memory data, uint256 sentAt) {
         
         UserMailbox storage mailbox = mailboxes[msg.sender];
         uint256 msgCount = mailbox.countMessagesFrom(sender);
-        if (msgCount == 0 || msgIndex > 0) {
+        if (msgCount == 0) {
             bytes memory zero;
-            return (zero, 0, false);
+            return (bytes32(0), zero, 0);
         }
         (bytes32 _msgId, Message memory _msg) = mailbox.readMessageFrom(sender);
+        msgId = _msgId;
         data = _msg.data;
         sentAt = _msg.sentAt;
-        hasMoreMessages = msgCount>1;
     }
 
     /**
-     * @notice Removes all messages from the specified sender
-     * @param sender The sender who messages to remove
+     * Marks a top message as read making the next message available for reading
+     * @param msgId ID of the read message
+     * @return moreMessages whether other message are exist from the same sender
      */
-    function clearMessages(address sender) external {
+    function markMessageRead(bytes32 msgId) external returns (bool moreMessages) {
         UserMailbox storage mailbox = mailboxes[msg.sender];
-        mailbox.markMessageReadFrom(sender);
-        emit MailboxUpdated(sender, msg.sender, 0, block.timestamp);
+        Message storage _msg = mailbox.getMessage(msgId);
+        uint256 msgCount = mailbox.countMessagesFrom(_msg.sender);
+        emit MailboxUpdated(_msg.sender, msg.sender, msgCount-1, block.timestamp);
+        return mailbox.markMessageRead(msgId);
     }
-
 }

@@ -41,8 +41,7 @@ describe.only("Mailbox", function () {
     const [owner, otherAccount] = await ethers.getSigners();
 
     const { contract } = await ignition.deploy(mailboxModule);
-
-    expect(await contract.readMessage(otherAccount, 0)).to.include.members(["0x", 0n, false]);
+    expect(await contract.readMessage(otherAccount)).to.include.members(["0x", 0n]);
   });
 
   it("Should provide a message to a recipient when requested", async function () {
@@ -59,10 +58,9 @@ describe.only("Mailbox", function () {
     .to.emit(callAsSender, "MailboxUpdated")
       .withArgs(sender, recipient, 1, anyValue);
 
-    expect(await callAsRecipient.readMessage(sender, 0)).to.include.members([msg, false]);
-    expect(await callAsRecipient.readMessage(sender, 1)).to.include.members(["0x", 0n, false]);
-    expect(await callAsSomeoutNoMessages.readMessage(sender, 0)).to.include.members(["0x", 0n, false]);
-    expect(await callAsRecipient.readMessage(someoneNoMessages, 0)).to.include.members(["0x", 0n, false]);
+    expect(await callAsRecipient.readMessage(sender)).to.include.members([msg]);
+    expect(await callAsSomeoutNoMessages.readMessage(sender)).to.include.members(["0x", 0n]);
+    expect(await callAsRecipient.readMessage(someoneNoMessages)).to.include.members(["0x", 0n]);
   });
 
   it("Should allow writing messages until per dialog limit is reached (sender<->recipient)", async function () {
@@ -81,37 +79,70 @@ describe.only("Mailbox", function () {
       .to.be.revertedWithCustomError(callAsSender, "MailboxIsFull");
   });
 
-  it.skip("Should allow reading messages", async function () {
+  it("Should provide the next unread message once a message is marked as read", async function () {
     const {contract, sender, recipient, messages} = await loadFixture(deployContractFullMailboxFixture);
     
     const callAsRecipient = contract.connect(recipient);
-    
-    for(let msgIndex=0; msgIndex < messages.length-1; ++msgIndex) {
-      expect(await callAsRecipient.readMessage(sender, msgIndex)).to.include.members([messages[msgIndex], true]);
+    let msgIndex=0
+    for(; msgIndex < messages.length-1; ++msgIndex) {
+      result = await callAsRecipient.readMessage(sender);
+      expect(result.getValue("data")).to.be.equal(messages[msgIndex]);
+      // demonstrate the same msg is read until is marked as read 
+      result = await callAsRecipient.readMessage(sender);
+      expect(result.getValue("data")).to.be.equal(messages[msgIndex]);
+
+      let expRemainingMsgCount = messages.length-msgIndex-1;
+      await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
+      .withArgs(sender, recipient, expRemainingMsgCount, anyValue);
     }
-    let msgIndex = messages.length-1;
-    expect(await callAsRecipient.readMessage(sender, msgIndex)).to.include.members([messages[msgIndex], false]);
-    msgIndex++;
-    expect(await callAsRecipient.readMessage(sender, msgIndex)).to.include.members(["0x", 0n, false]);
+    result = await callAsRecipient.readMessage(sender);
+    expect(result.getValue("data")).to.be.equal(messages[msgIndex]);
+
+    await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
+      .withArgs(sender, recipient, 0, anyValue);
+
+    expect(await callAsRecipient.readMessage(sender)).to.include.members(["0x", 0n]);
   });
 
-  it("Should allow clearing the dialog to make space for new messages", async function () {
+  it("Should allow writing new messages once pending message is read", async function () {
     const {contract, sender, recipient, messages} = await loadFixture(deployContractFullMailboxFixture);
     
     const callAsSender = contract.connect(sender);
     const callAsRecipient = contract.connect(recipient);
-    await expect(callAsSender.writeMessage("0xff", recipient))
-      .to.be.revertedWithCustomError(callAsSender, "MailboxIsFull");
-
-    await expect(callAsRecipient.clearMessages(sender))
-    .to.emit(callAsRecipient, "MailboxUpdated")
-      .withArgs(sender, recipient, 0, anyValue);
-      
-    for(let i=0; i < messages.length; ++i) {
-      const msg = messages[i];
+    
+    // read all messages
+    for(let msgIndex=0; msgIndex < messages.length; ++msgIndex) {
+      result = await callAsRecipient.readMessage(sender);
+      tx = await callAsRecipient.markMessageRead(result.getValue("msgId"));
+      await tx.wait();
+    }
+    
+    // verify mailbox empty
+    expect(await callAsRecipient.readMessage(sender)).to.include.members(["0x", 0n]);
+    
+    // check new messages can be added
+    let newMessages = messages.slice(2);
+    let messagesCount = newMessages.length;
+    for(let i=0; i < newMessages.length; ++i) {
+      const msg = newMessages[i];
       await expect(callAsSender.writeMessage(msg, recipient))
       .to.emit(callAsSender, "MailboxUpdated")
         .withArgs(sender, recipient, i+1, anyValue);
     }
+
+    // check new messages can be read
+    result = await callAsRecipient.readMessage(sender);
+    expect(result.getValue("data")).to.be.equal(newMessages[0]);
+    await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
+      .withArgs(sender, recipient, messagesCount-1, anyValue);
+
+    result = await callAsRecipient.readMessage(sender);
+    expect(result.getValue("data")).to.be.equal(newMessages[1]);
+    await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
+      .withArgs(sender, recipient, messagesCount-2, anyValue);    
   });
 });
