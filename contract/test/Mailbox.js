@@ -145,4 +145,31 @@ describe.only("Mailbox", function () {
       .to.emit(callAsRecipient, "MailboxUpdated")
       .withArgs(sender, recipient, messagesCount-2, anyValue);    
   });
+
+  it("Should support reading messages without sender specified", async function () {
+    const {contract, recipient, otherAccounts} = await loadFixture(deployContractFixture);
+
+    const senders = otherAccounts;
+    const callAsRecipient = contract.connect(recipient);
+    
+    const msg = "0xaa"
+    
+    for(let sender of senders) {
+      const callAsSender = contract.connect(sender);
+      await expect(callAsSender.writeMessage(msg, recipient))
+      .to.emit(callAsSender, "MailboxUpdated")
+        .withArgs(sender, recipient, 1, anyValue);
+    }
+
+    for(let sender of senders) {
+      result = await callAsRecipient.readMessageNextSender();
+      expect(result.getValue("data")).to.be.equal(msg);
+
+      await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
+      .withArgs(sender, recipient, 0, anyValue);
+    }
+
+    expect(await callAsRecipient.readMessageNextSender()).to.include.members(["0x", 0n]);
+  });
 });
