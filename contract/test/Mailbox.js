@@ -172,4 +172,34 @@ describe.only("Mailbox", function () {
 
     expect(await callAsRecipient.readMessageNextSender()).to.include.members(["0x", 0n]);
   });
+
+  it("Should allow writing/reading anonymous messages", async function () {
+    const {contract, sender, recipient} = await loadFixture(deployContractFixture);
+
+    const callAsSender = contract.connect(sender);
+    const callAsRecipient = contract.connect(recipient);
+    const anonSender = ethers.ZeroAddress;
+    
+    const msg = "0xaa"
+
+    await expect(callAsSender.writeMessageAnonymous(msg, recipient))
+    .to.emit(callAsSender, "MailboxUpdated")
+      .withArgs(anonSender, recipient, 1, anyValue);
+
+    // read anon msg by specifynig anon sender explicitly
+    result = await callAsRecipient.readMessage(anonSender);
+    expect(result.getValue("data")).to.be.equal(msg);
+
+    // read anon message omiting a sender
+    result = await callAsRecipient.readMessageNextSender();
+    expect(result.getValue("data")).to.be.equal(msg);
+
+    await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
+      .withArgs(anonSender, recipient, 0, anyValue);
+
+    // check no messages after marking the only msg as read
+    expect(await callAsRecipient.readMessage(anonSender)).to.include.members(["0x", 0n]);
+    expect(await callAsRecipient.readMessageNextSender()).to.include.members(["0x", 0n]);
+  });
 });
