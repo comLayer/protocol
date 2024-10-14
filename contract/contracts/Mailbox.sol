@@ -34,7 +34,7 @@ contract Mailbox {
     }
 
     /**
-     * @notice Writes a messages to a dedicated Mailbox for (sender,recipient)
+     * @notice Writes a message to a dedicated Mailbox for (sender,recipient)
      * @param message The message to write
      * @param recipient Message recipient address
      */
@@ -48,9 +48,29 @@ contract Mailbox {
             data: message,
             sentAt: block.timestamp
         });
-        mailbox.writeMessage(_msg);
+        mailbox.writeMessage(_msg, msg.sender);
 
         emit MailboxUpdated(msg.sender, recipient, msgCount+1, block.timestamp);
+    }
+
+    /**
+     * @notice Writes a message to a dedicated Mailbox for (sender,recipient), hiding sender addr from a recipient
+     * @param message The message to write
+     * @param recipient Message recipient address
+     */
+    function writeMessageAnonymous(bytes calldata message, address recipient) external {
+        UserMailbox storage mailbox = mailboxes[recipient];
+        uint256 msgCount = mailbox.countMessagesFrom(msg.sender);
+        if (msgCount == MAX_MESSAGES_PER_MAILBOX) revert MailboxIsFull();
+
+        Message memory _msg = Message({
+            sender: address(0),
+            data: message,
+            sentAt: block.timestamp
+        });
+        mailbox.writeMessage(_msg, _msg.sender);
+
+        emit MailboxUpdated(_msg.sender, recipient, msgCount+1, block.timestamp);
     }
 
     /**

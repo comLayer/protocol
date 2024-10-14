@@ -21,11 +21,11 @@ using LinkedListInterface for LinkedList;
 error MessageNotFound();
 
 library UserMailboxInterface {
-    function writeMessage(UserMailbox storage self, Message memory _msg) public {
+    function writeMessage(UserMailbox storage self, Message memory _msg, address sender) public {
         bytes32 messageId = keccak256(abi.encode(_msg));
         self.messages[messageId] = _msg;
 
-        LinkedList storage list = self.orderedMessageLists[keccak256(abi.encode(_msg.sender))];
+        LinkedList storage list = self.orderedMessageLists[keccak256(abi.encode(sender))];
         list.init();
         list.insertTail(messageId);
         bool isFirstSenderMsg = list.size == 1;
