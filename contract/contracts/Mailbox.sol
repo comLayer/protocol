@@ -24,11 +24,14 @@ contract Mailbox {
     /// @param timestamp Time when operation occurred
     event MailboxUpdated(address indexed sender, address indexed recipient, uint messagesCount, uint256 timestamp);
 
-    /// @notice Raised on attemt to write a messages to a full Mailbox
+    /// @notice Raised on attempt to write a message when Mailbox is full
     error MailboxIsFull();
 
-    /// @notice Raised on attemt to read a messages when no unread messages left
+    /// @notice Raised on attempt to read a message when no unread messages left
     error MailboxIsEmpty();
+
+    /// @notice Raised on failure to find the requested message
+    error MessageNotFound();
 
     using UserMailboxInterface for UserMailbox;
 
@@ -123,7 +126,8 @@ contract Mailbox {
      */
     function markMessageRead(bytes32 msgId) external returns (bool moreMessages) {
         UserMailbox storage mailbox = mailboxes[msg.sender];
-        Message storage _msg = mailbox.getMessage(msgId);
+        (bool exists, Message storage _msg) = mailbox.getMessage(msgId);
+        if (!exists) revert MessageNotFound();
         uint256 msgCount = mailbox.countMessagesFrom(_msg.sender);
         emit MailboxUpdated(_msg.sender, msg.sender, msgCount-1, block.timestamp);
         return mailbox.markMessageRead(msgId);

@@ -104,8 +104,11 @@ describe.only("Mailbox", function () {
       .to.emit(callAsRecipient, "MailboxUpdated")
       .withArgs(sender, recipient, 0, anyValue);
 
+    // verify no messages left
     await expect(callAsRecipient.readMessage(sender))
       .to.be.revertedWithCustomError(callAsRecipient, "MailboxIsEmpty");
+    await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.be.revertedWithCustomError(callAsRecipient, "MessageNotFound");
   });
 
   it("Should allow writing new messages once pending message is read", async function () {
