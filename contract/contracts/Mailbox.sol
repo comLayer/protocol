@@ -27,6 +27,9 @@ contract Mailbox {
     /// @notice Raised on attemt to write a messages to a full Mailbox
     error MailboxIsFull();
 
+    /// @notice Raised on attemt to read a messages when no unread messages left
+    error MailboxIsEmpty();
+
     using UserMailboxInterface for UserMailbox;
 
     constructor() {
@@ -86,10 +89,7 @@ contract Mailbox {
         
         UserMailbox storage mailbox = mailboxes[msg.sender];
         uint256 msgCount = mailbox.countMessagesFrom(sender);
-        if (msgCount == 0) {
-            bytes memory zero;
-            return (bytes32(0), zero, 0);
-        }
+        if (msgCount == 0) revert MailboxIsEmpty();
         (bytes32 _msgId, Message memory _msg) = mailbox.readMessageFrom(sender);
         msgId = _msgId;
         data = _msg.data;
@@ -108,10 +108,7 @@ contract Mailbox {
         returns (bytes32 msgId, address sender, bytes memory data, uint256 sentAt) {
         UserMailbox storage mailbox = mailboxes[msg.sender];
         uint256 msgCount = mailbox.countSenders();
-        if (msgCount == 0) {
-            bytes memory zero;
-            return (bytes32(0), address(0), zero, 0);
-        }
+        if (msgCount == 0) revert MailboxIsEmpty();
         Message storage _msg;
         (msgId, _msg) = mailbox.readMessageNextSender();
         sender = _msg.sender;
