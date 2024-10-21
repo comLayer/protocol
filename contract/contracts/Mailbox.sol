@@ -60,17 +60,18 @@ contract Mailbox {
      */
     function writeMessageAnonymous(bytes calldata message, address recipient) external {
         UserMailbox storage mailbox = mailboxes[recipient];
-        uint256 msgCount = mailbox.countMessagesFrom(msg.sender);
+        address anonSender = address(0);
+        uint256 msgCount = mailbox.countMessagesFrom(anonSender);
         if (msgCount == MAX_MESSAGES_PER_MAILBOX) revert MailboxIsFull();
 
         Message memory _msg = Message({
-            sender: address(0),
+            sender: anonSender,
             data: message,
             sentAt: block.timestamp
         });
-        mailbox.writeMessage(_msg, _msg.sender);
+        mailbox.writeMessage(_msg, anonSender);
 
-        emit MailboxUpdated(_msg.sender, recipient, msgCount+1, block.timestamp);
+        emit MailboxUpdated(anonSender, recipient, msgCount+1, block.timestamp);
     }
 
     /**

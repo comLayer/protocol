@@ -180,19 +180,35 @@ describe.only("Mailbox", function () {
     const callAsRecipient = contract.connect(recipient);
     const anonSender = ethers.ZeroAddress;
     
-    const msg = "0xaa"
+    const firstMsg = "0xaa"
+    const secondMsg = "0xaa"
 
-    await expect(callAsSender.writeMessageAnonymous(msg, recipient))
+    await expect(callAsSender.writeMessageAnonymous(firstMsg, recipient))
     .to.emit(callAsSender, "MailboxUpdated")
+      .withArgs(anonSender, recipient, 1, anyValue);
+    await expect(callAsSender.writeMessageAnonymous(secondMsg, recipient))
+    .to.emit(callAsSender, "MailboxUpdated")
+      .withArgs(anonSender, recipient, 2, anyValue);
+
+    // read anon msg by specifynig anon sender explicitly
+    result = await callAsRecipient.readMessage(anonSender);
+    expect(result.getValue("data")).to.be.equal(firstMsg);
+
+    // read anon message omiting a sender
+    result = await callAsRecipient.readMessageNextSender();
+    expect(result.getValue("data")).to.be.equal(firstMsg);
+
+    await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
+      .to.emit(callAsRecipient, "MailboxUpdated")
       .withArgs(anonSender, recipient, 1, anyValue);
 
     // read anon msg by specifynig anon sender explicitly
     result = await callAsRecipient.readMessage(anonSender);
-    expect(result.getValue("data")).to.be.equal(msg);
+    expect(result.getValue("data")).to.be.equal(secondMsg);
 
     // read anon message omiting a sender
     result = await callAsRecipient.readMessageNextSender();
-    expect(result.getValue("data")).to.be.equal(msg);
+    expect(result.getValue("data")).to.be.equal(secondMsg);
 
     await expect(callAsRecipient.markMessageRead(result.getValue("msgId")))
       .to.emit(callAsRecipient, "MailboxUpdated")
